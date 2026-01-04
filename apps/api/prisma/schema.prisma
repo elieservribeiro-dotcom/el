@@ -1,0 +1,289 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantType {
+  PLATFORM
+  RESELLER
+  COMPANY
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  RESELLER_ADMIN
+  COMPANY_ADMIN
+  SUPERVISOR
+  AGENT
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SenderType {
+  CUSTOMER
+  AGENT
+  AI
+}
+
+enum KnowledgeSourceType {
+  KNOWLEDGE_BASE
+  RESOLVED_TICKET
+  UPLOADED_DOCUMENT
+}
+
+model Tenant {
+  id        String       @id @default(uuid())
+  parentId  String?
+  type      TenantType
+  name      String
+  slug      String       @unique
+  status    TenantStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  parent   Tenant?  @relation("TenantHierarchy", fields: [parentId], references: [id])
+  children Tenant[] @relation("TenantHierarchy")
+
+  users            User[]
+  customers        Customer[]
+  tickets          Ticket[]
+  conversations    Conversation[]
+  messages         Message[]
+  brandProfile     BrandProfile?
+  prompts          Prompt[]
+  promptVersions   PromptVersion[]
+  knowledgeDocs    KnowledgeDocument[]
+  embeddings       Embedding[]
+  aiInteractions   AIInteractionLog[]
+  aiPolicy         AIPolicy?
+  rateLimits       RateLimit[]
+
+  @@index([parentId])
+}
+
+model User {
+  id           String     @id @default(uuid())
+  tenantId     String
+  email        String
+  passwordHash String
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model BrandProfile {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  name      String
+  theme     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Prompt {
+  id          String   @id @default(uuid())
+  tenantId    String
+  key         String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id])
+  versions  PromptVersion[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}
+
+model PromptVersion {
+  id           String   @id @default(uuid())
+  tenantId     String
+  promptId     String
+  version      Int
+  systemPrompt String
+  tenantPrompt String
+  taskPrompt   String
+  isActive     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  prompt Prompt @relation(fields: [promptId], references: [id])
+
+  @@unique([promptId, version])
+  @@index([tenantId])
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  tenantId  String
+  externalId String?
+  email     String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  tickets Ticket[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model Ticket {
+  id         String         @id @default(uuid())
+  tenantId   String
+  customerId String
+  status     TicketStatus   @default(OPEN)
+  priority   TicketPriority @default(MEDIUM)
+  subject    String
+  summary    String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  conversations Conversation[]
+
+  @@index([tenantId])
+  @@index([customerId])
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  tenantId  String
+  ticketId  String
+  channel   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  ticket  Ticket  @relation(fields: [ticketId], references: [id])
+  messages Message[]
+
+  @@index([tenantId])
+  @@index([ticketId])
+}
+
+model Message {
+  id              String     @id @default(uuid())
+  tenantId        String
+  conversationId  String
+  senderType      SenderType
+  content         String
+  redactedContent String?
+  createdAt       DateTime   @default(now())
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([tenantId])
+  @@index([conversationId])
+}
+
+model KnowledgeDocument {
+  id         String              @id @default(uuid())
+  tenantId   String
+  title      String
+  body       String
+  sourceType KnowledgeSourceType
+  sourceId   String?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model Embedding {
+  id         String              @id @default(uuid())
+  tenantId   String
+  sourceType KnowledgeSourceType
+  sourceId   String
+  vectorId   String
+  createdAt  DateTime            @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([sourceId])
+}
+
+model AIInteractionLog {
+  id             String   @id @default(uuid())
+  tenantId       String
+  promptVersionId String
+  inputTokens    Int
+  outputTokens   Int
+  costUsd        Decimal  @db.Decimal(10, 4)
+  inputText      String
+  outputText     String
+  createdAt      DateTime @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  promptVersion PromptVersion @relation(fields: [promptVersionId], references: [id])
+
+  @@index([tenantId])
+  @@index([promptVersionId])
+}
+
+model AIPolicy {
+  id                    String   @id @default(uuid())
+  tenantId              String   @unique
+  aiEnabled             Boolean  @default(true)
+  piiRedactionEnabled   Boolean  @default(true)
+  maxTokensPerRequest   Int      @default(2000)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model RateLimit {
+  id            String   @id @default(uuid())
+  tenantId      String
+  key           String
+  limit         Int
+  windowSeconds Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}

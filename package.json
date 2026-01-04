@@ -1,0 +1,13 @@
+{
+  "name": "el",
+  "private": true,
+  "packageManager": "pnpm@9.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "lint": "echo 'lint not configured'",
+    "format": "echo 'format not configured'"
+  }
+}
