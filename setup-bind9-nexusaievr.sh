@@ -206,6 +206,8 @@ README PÓS-IMPLANTAÇÃO
    dig @ns1.nexusaievr.com.br nexusaievr.com.br SOA
    dig @ns1.nexusaievr.com.br el.nexusaievr.com.br A
    dig @ns1.nexusaievr.com.br api.nexusaievr.com.br A
+
+5) Site público: http://nexusaievr.com.br/
 README
 }
 
